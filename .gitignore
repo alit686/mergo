@@ -1,0 +1,19 @@
+# أسرار وبيانات محلية — لا تُرفع أبدًا
+.env
+.env.*
+!.env.example
+.data/
+PROJECT-STATE.md
+
+# تبعيات ومخرجات بناء
+node_modules/
+.next/
+out/
+build/
+dist/
+.vercel/
+tsconfig.tsbuildinfo
+
+# متنوع
+*.log
+.DS_Store

@@ -1,0 +1,36 @@
+{
+  "name": "mcp-media-generator",
+  "version": "1.2.0",
+  "private": true,
+  "description": "خادم MCP لتوليد الصور والفيديو بالذكاء الاصطناعي مع تبديل تسلسلي للمفاتيح ولوحة إدارة عربية",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "verify:no-keys": "node scripts/verify-no-keys.mjs",
+    "verify:keys": "node scripts/verify-keys-crud.mjs",
+    "verify:negative": "node scripts/verify-negative.mjs",
+    "verify:merge": "node scripts/verify-merge-e2e.mjs"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.18.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "next": "15.5.29",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
