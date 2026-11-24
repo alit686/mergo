@@ -104,8 +104,9 @@ const URLS = [
 
     // حذف مهمة الدمج من الخدمة نفسها (لا توجد أداة حذف في MCP)
     const jobId = (link.match(/\/api\/jobs\/([^/]+)\/video/) || [])[1];
+    const mergerBase = health?.merger?.base || "http://127.0.0.1:3001";
     if (jobId) {
-      const del = await fetch(`http://127.0.0.1:3001/api/jobs/${jobId}`, { method: "DELETE" });
+      const del = await fetch(`${mergerBase}/api/jobs/${jobId}`, { method: "DELETE" }).catch(() => ({ status: 0 }));
       check("حذف مهمة الدمج بعد الاختبار", del.status === 200, `status=${del.status}`);
     }
   }
