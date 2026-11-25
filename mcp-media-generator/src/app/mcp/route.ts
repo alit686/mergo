@@ -62,14 +62,14 @@ function processingMsg(taskId: string): string {
 function errMsg(msg: string): string {
   return `❌ ${msg}`;
 }
-function okImage(url: string): string {
-  return `✅ تم توليد الصورة بنجاح\n\n![image](${url})\n\nالرابط المباشر: ${url}`;
+function okImage(url: string, taskId: string): string {
+  return `✅ تم توليد الصورة بنجاح\n\n![image](${url})\n\nالرابط المباشر: ${url}\n\n🆔 task_id: ${taskId}`;
 }
-function okVideo(urls: string[]): string {
-  return `✅ تم توليد الفيديو بنجاح\n${urls.map((u) => `- ${u}`).join("\n")}`;
+function okVideo(urls: string[], taskId: string): string {
+  return `✅ تم توليد الفيديو بنجاح\n${urls.map((u) => `- ${u}`).join("\n")}\n\n🆔 task_id: ${taskId}\nاستخدمه مع merge_videos (task_ids) أو get_task.`;
 }
-function okMerge(urls: string[]): string {
-  return `✅ تم دمج المقاطع بنجاح\n${urls.map((u) => `- ${u}`).join("\n")}\n\n⚠️ ملف الدمج يُحذف من خدمة الدمج بعد ~24 ساعة — شاهده/نزّله سريعًا.`;
+function okMerge(urls: string[], taskId: string): string {
+  return `✅ تم دمج المقاطع بنجاح\n${urls.map((u) => `- ${u}`).join("\n")}\n\n🆔 task_id: ${taskId}\n\n⚠️ ملف الدمج يُحذف من خدمة الدمج بعد ~24 ساعة — شاهده/نزّله سريعًا.`;
 }
 function msgOf(err: unknown): string {
   if (err instanceof ToolInputError) return err.message;
@@ -133,7 +133,7 @@ function createMcpServer(): McpServer {
     "generate_image",
     {
       description:
-        "Generate an image using gpt-image-2-6/flare-text-to-image (auto failover across all active keys). Returns the image URL if completed within the wait window, otherwise returns a task_id — call get_task every ~10s until completed then show the URL.",
+        "Generate an image using gpt-image-2-6/flare-text-to-image (auto failover across all active keys). Always returns a task_id: if completed within the wait window you also get the image URL, otherwise call get_task every ~10s until completed then show the URL.",
       inputSchema: generateImageSchema,
     },
     async (args) => {
@@ -151,7 +151,7 @@ function createMcpServer(): McpServer {
         if (out.noKeysForModel) return fail(noKeysMsg(out.noKeysForModel));
         const t = out.task;
         if (!t) return fail("❌ تعذّر إنشاء المهمة.");
-        if (t.status === "completed" && t.resultUrls.length) return { content: [{ type: "text", text: okImage(t.resultUrls[0]) }] };
+        if (t.status === "completed" && t.resultUrls.length) return { content: [{ type: "text", text: okImage(t.resultUrls[0], t.id) }] };
         if (t.status === "failed") return fail(t.errorMessage ?? "خطأ غير معروف.");
         return { content: [{ type: "text", text: processingMsg(t.id) }] };
       } catch (err) {
@@ -164,7 +164,7 @@ function createMcpServer(): McpServer {
     "generate_video",
     {
       description:
-        "Generate a video using grok-imagine-video-1-5-preview with native synchronous audio (dialogue/music/sfx). Optionally image-to-video. Video needs minutes: brief wait with live progress then returns task_id — poll with get_task every ~10s.",
+        "Generate a video using grok-imagine-video-1-5-preview with native synchronous audio (dialogue/music/sfx). Optionally image-to-video. Video needs minutes: brief wait with live progress then returns task_id — poll with get_task every ~10s. Always keep the returned task_id: merge_videos accepts it (task_ids) to concatenate finished clips.",
       inputSchema: generateVideoSchema,
     },
     async (args) => {
@@ -183,7 +183,7 @@ function createMcpServer(): McpServer {
         if (out.noKeysForModel) return fail(noKeysMsg(out.noKeysForModel));
         const t = out.task;
         if (!t) return fail("❌ تعذّر إنشاء المهمة.");
-        if (t.status === "completed" && t.resultUrls.length) return { content: [{ type: "text", text: okVideo(t.resultUrls) }] };
+        if (t.status === "completed" && t.resultUrls.length) return { content: [{ type: "text", text: okVideo(t.resultUrls, t.id) }] };
         if (t.status === "failed") return fail(t.errorMessage ?? "خطأ غير معروف.");
         return { content: [{ type: "text", text: processingMsg(t.id) }] };
       } catch (err) {
@@ -208,7 +208,7 @@ function createMcpServer(): McpServer {
         });
         const t = out.task;
         if (!t) return fail("❌ تعذّر إنشاء مهمة الدمج.");
-        if (t.status === "completed" && t.resultUrls.length) return { content: [{ type: "text", text: okMerge(t.resultUrls) }] };
+        if (t.status === "completed" && t.resultUrls.length) return { content: [{ type: "text", text: okMerge(t.resultUrls, t.id) }] };
         if (t.status === "failed") return fail(t.errorMessage ?? "فشل الدمج.");
         return { content: [{ type: "text", text: processingMsg(t.id) }] };
       } catch (err) {
@@ -231,8 +231,8 @@ function createMcpServer(): McpServer {
         const task = await refreshTask(taskId);
         if (!task) return fail(`المهمة غير موجودة: ${taskId}`);
         if (task.status === "completed" && task.resultUrls.length) {
-          const text = task.type === "image" ? okImage(task.resultUrls[0])
-            : task.type === "merge" ? okMerge(task.resultUrls) : okVideo(task.resultUrls);
+          const text = task.type === "image" ? okImage(task.resultUrls[0], task.id)
+            : task.type === "merge" ? okMerge(task.resultUrls, task.id) : okVideo(task.resultUrls, task.id);
           return { content: [{ type: "text", text }] };
         }
         if (task.status === "failed") return fail(task.errorMessage ?? "خطأ غير معروف.");
