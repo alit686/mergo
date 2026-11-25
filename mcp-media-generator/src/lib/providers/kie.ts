@@ -60,6 +60,15 @@ async function call(url: string, init: RequestInit): Promise<Json> {
 }
 
 function buildInput(input: AdapterInput): Json {
+  // إعادة محاولة مبسّطة: بعض موديلات الفيديو ترفض الحقول الاختيارية
+  // (resolution/aspect_ratio/enable_audio) بخطأ داخلي «Internal Error».
+  if (input.type === "video" && input.minimal) {
+    const minimal: Json = { prompt: input.prompt };
+    if (input.duration) minimal.duration = input.duration;
+    if (input.imageUrl) minimal.image_urls = [input.imageUrl];
+    return minimal;
+  }
+
   const payload: Json = { prompt: input.prompt };
   if (input.type === "image") {
     if (input.aspectRatio && input.aspectRatio !== "auto") payload.aspect_ratio = input.aspectRatio;
@@ -67,7 +76,7 @@ function buildInput(input: AdapterInput): Json {
     if (input.background && input.background !== "auto") payload.background = input.background;
     if (input.outputFormat) payload.output_format = input.outputFormat;
   } else {
-    if (input.imageUrl) payload.image_url = input.imageUrl;
+    if (input.imageUrl) payload.image_urls = [input.imageUrl];
     if (input.aspectRatio && input.aspectRatio !== "auto") payload.aspect_ratio = input.aspectRatio;
     if (input.resolution) payload.resolution = input.resolution;
     if (typeof input.enableAudio === "boolean") payload.enable_audio = input.enableAudio;

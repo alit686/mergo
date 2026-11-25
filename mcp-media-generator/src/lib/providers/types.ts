@@ -13,6 +13,11 @@ export interface AdapterInput {
   enableAudio?: boolean;
   duration?: number;
   imageUrl?: string;
+  /**
+   * إعادة محاولة مبسّطة: يُرسل الحقل الأساسي فقط (prompt + المدة + الصورة).
+   * تُستخدم عندما يرفض المزود الطلب الكامل بخطأ داخلي غير مفيد.
+   */
+  minimal?: boolean;
 }
 
 export interface ProviderCheckResult {

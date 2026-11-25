@@ -104,7 +104,7 @@ async function markFailed(task: TaskRecord, message: string): Promise<TaskRecord
   return updated ?? task;
 }
 
-function adapterInput(task: TaskRecord, providerModel: string) {
+function adapterInput(task: TaskRecord, providerModel: string, minimal = false) {
   const p = task.params;
   const str = (key: string) => (typeof p[key] === "string" ? (p[key] as string) : undefined);
   return {
@@ -118,6 +118,7 @@ function adapterInput(task: TaskRecord, providerModel: string) {
     enableAudio: typeof p.enable_audio === "boolean" ? (p.enable_audio as boolean) : undefined,
     duration: typeof p.duration === "number" ? (p.duration as number) : undefined,
     imageUrl: str("image_url"),
+    minimal,
   };
 }
 
@@ -234,7 +235,41 @@ async function rebuildOnNextKey(task: TaskRecord, def: ModelDef): Promise<TaskRe
   return result.task;
 }
 
-/** هل مضت فترة التهدئة منذ آخر محاولة؟ */
+/** هل جُرِّبت إعادة المحاولة المبسّطة لهذه المهمة؟ */
+function usedMinimalRetry(task: TaskRecord): boolean {
+  return task.attempts.some((a) => a.note === "retry-minimal");
+}
+
+/**
+ * مزوّد kie يُرجع أحيانًا «Internal Error» لمهام الفيديو عند إرسال حقول اختيارية
+ * (resolution/aspect_ratio/enable_audio) مع مدة طويلة. نعيد إنشاء المهمة بالحقول
+ * الأساسية فقط، مع الإبقاء على نفس task_id للمستخدم. الفشل السابق لا يستهلك رصيدًا.
+ */
+async function retryWithMinimalInput(task: TaskRecord, key: ApiKeyRecord): Promise<boolean> {
+  if (task.type !== "video" || task.provider !== "kie") return false;
+  if (usedMinimalRetry(task)) return false;
+  const def = resolveModel(task.model);
+  if (!def) return false;
+  const providerModel = def.providerModel[key.provider] ?? def.canonical;
+  try {
+    const { providerTaskId } = await getAdapter(key.provider).createTask(
+      key.apiKey,
+      adapterInput(task, providerModel, true),
+    );
+    await updateTask(task.id, {
+      providerTaskId,
+      status: "processing",
+      progress: 5,
+      errorMessage: null,
+      appendAttempts: [attemptOf(key, true, undefined, undefined, "retry-minimal")],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** هل مضى وقت التهدئة (45 ثانية) منذ آخر محاولة؟ */
 function cooldownElapsed(task: TaskRecord): boolean {
   const last = task.attempts[task.attempts.length - 1];
   const lastAt = last ? Date.parse(last.at) : 0;
@@ -299,6 +334,14 @@ async function pollProviderOnce(task: TaskRecord): Promise<TaskRecord> {
         if (!def) return markFailed(task, "الموديل المرتبط بالمهمة لم يعد معروفًا.");
         return rebuildOnNextKey(task, def);
       }
+
+      // خطأ داخلي غامض من مزوّد الفيديو: نعيد إنشاء المهمة بحقول أساسية فقط
+      // (نفس task_id للمستخدم). الفشل لا يستهلك رصيدًا، لذا المحاولة مجانية عمليًا.
+      if (await retryWithMinimalInput(task, key)) {
+        const retried = await getTask(task.id);
+        return retried ?? task;
+      }
+
       return markFailed(task, reason);
     }
 
